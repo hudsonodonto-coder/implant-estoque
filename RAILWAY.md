@@ -24,10 +24,16 @@ Crie o repositório vazio no GitHub antes (sem README).
 
 ### 3. Volume (obrigatório para não perder o estoque)
 
-1. No serviço → **Settings** → **Volumes**
-2. **Add Volume**
-3. Mount path: `/data`
-4. Salve (vai redesployar)
+Na Railway atual o volume **não** fica em Settings do serviço.
+
+1. Abra o projeto (visão do canvas com os cards)
+2. Clique com o **botão direito** num espaço vazio → **Volume** / **New Volume**  
+   (ou `Ctrl+K` / `Cmd+K` → digite `New Volume`)
+3. Selecione o serviço do Impla
+4. Mount path: `/data`
+5. Salve (vai redesployar)
+
+Também funciona definir a variável `DATA_DIR=/data`.
 
 ### 4. Variáveis
 

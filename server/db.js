@@ -4,14 +4,17 @@ const Database = require('better-sqlite3');
 
 const dataDir = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
-  : path.join(__dirname, '..', 'data');
+  : process.env.RAILWAY_VOLUME_MOUNT_PATH
+    ? path.resolve(process.env.RAILWAY_VOLUME_MOUNT_PATH)
+    : path.join(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'estoque.db');
 const seedSource = path.join(__dirname, '..', 'data', 'seed.json');
 
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-// Keep seed.json available even when DATA_DIR points to a Railway volume
-if (process.env.DATA_DIR && !fs.existsSync(path.join(dataDir, 'seed.json')) && fs.existsSync(seedSource)) {
+// Keep seed.json available even when DATA_DIR / volume points elsewhere
+const volumeOrDataDir = process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH;
+if (volumeOrDataDir && !fs.existsSync(path.join(dataDir, 'seed.json')) && fs.existsSync(seedSource)) {
   fs.copyFileSync(seedSource, path.join(dataDir, 'seed.json'));
 }
 
