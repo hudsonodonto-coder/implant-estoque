@@ -419,6 +419,10 @@ export default function App() {
       await refreshAll();
       await openOrder(res.order.id);
       showToast(`Pedido gerado para ${clinicName(clinic)}`);
+      // abre WhatsApp em seguida para facilitar o envio
+      setTimeout(() => {
+        shareOrderWhatsApp(res.order);
+      }, 350);
     } catch (e) {
       showToast(e.message);
     } finally {
@@ -452,6 +456,28 @@ export default function App() {
     } catch (e) {
       showToast(e.message);
     }
+  }
+
+  function orderWhatsAppText(order) {
+    if (!order) return '';
+    if (order.items?.length) {
+      const lines = order.items.map((i) => {
+        const unit = i.quantity === 1 ? 'unidade' : 'unidades';
+        return `Cod. ${i.code} - ${i.name} → ${i.quantity} ${unit}`;
+      });
+      const total = order.items.reduce((s, i) => s + i.quantity, 0);
+      const unit = total === 1 ? 'unidade' : 'unidades';
+      return `*Pedido de reposição — ${clinicName(order.clinic)}*\nID: ${order.id}\n\n${lines.join('\n')}\n\n*TOTAL: ${total} ${unit}*`;
+    }
+    return order.text || `Pedido ${order.id} — ${clinicName(order.clinic)}`;
+  }
+
+  function shareOrderWhatsApp(order = orderDetail) {
+    if (!order) return;
+    const text = orderWhatsAppText(order);
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    showToast('Abrindo WhatsApp…');
   }
 
   function bumpReceiveQty(productId, delta, max) {
@@ -1221,28 +1247,33 @@ export default function App() {
             </div>
 
             {orderDetail.status === 'aberto' && orderDetail.items?.length > 0 ? (
-              <div className="panel" style={{ marginBottom: 8 }}>
-                <strong>Quanto chegou?</strong>
-                <div className="meta" style={{ margin: '4px 0 8px' }}>
-                  Ajuste se faltar algum implante. O que não chegou volta para “a comprar”.
+              <>
+                <div className="panel" style={{ marginBottom: 8 }}>
+                  <pre style={{ margin: 0 }}>{orderWhatsAppText(orderDetail)}</pre>
                 </div>
-                {orderDetail.items.map((item) => {
-                  const received = receiveQtys[item.product_id] ?? item.quantity;
-                  return (
-                    <div key={item.product_id} className="report-item">
-                      <div>
-                        <div className="title">{item.name}</div>
-                        <div className="meta">Cod. {item.code} · pedido {item.quantity}</div>
+                <div className="panel" style={{ marginBottom: 8 }}>
+                  <strong>Quanto chegou?</strong>
+                  <div className="meta" style={{ margin: '4px 0 8px' }}>
+                    Ajuste se faltar algum implante. O que não chegou volta para “a comprar”.
+                  </div>
+                  {orderDetail.items.map((item) => {
+                    const received = receiveQtys[item.product_id] ?? item.quantity;
+                    return (
+                      <div key={item.product_id} className="report-item">
+                        <div>
+                          <div className="title">{item.name}</div>
+                          <div className="meta">Cod. {item.code} · pedido {item.quantity}</div>
+                        </div>
+                        <div className="qty-controls">
+                          <button onClick={() => bumpReceiveQty(item.product_id, -1, item.quantity)}>−</button>
+                          <span>{received}</span>
+                          <button onClick={() => bumpReceiveQty(item.product_id, 1, item.quantity)}>+</button>
+                        </div>
                       </div>
-                      <div className="qty-controls">
-                        <button onClick={() => bumpReceiveQty(item.product_id, -1, item.quantity)}>−</button>
-                        <span>{received}</span>
-                        <button onClick={() => bumpReceiveQty(item.product_id, 1, item.quantity)}>+</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              </>
             ) : (
               <div className="panel">
                 <pre>{orderDetail.text}</pre>
@@ -1250,6 +1281,9 @@ export default function App() {
             )}
 
             <div className="sheet-actions">
+              <button className="btn btn-solid" onClick={() => shareOrderWhatsApp(orderDetail)}>
+                Encaminhar no WhatsApp
+              </button>
               {orderDetail.status === 'aberto' && orderDetail.items?.length > 0 && (
                 <>
                   <button className="btn btn-accent" disabled={loading} onClick={receiveSelectedOrder}>
