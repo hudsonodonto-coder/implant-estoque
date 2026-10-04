@@ -3,6 +3,14 @@ import { api, getToken, setToken } from './api';
 import './index.css';
 
 const CLINICS = ['OC', 'RO'];
+const CLINIC_LABELS = {
+  OC: 'Odonto Center',
+  RO: 'Redeorto',
+};
+
+function clinicName(code) {
+  return CLINIC_LABELS[code] || code || '';
+}
 
 function IconHome() {
   return (
@@ -627,7 +635,7 @@ export default function App() {
             <h1>Estoque atual por clínica</h1>
             <p>
               {isDentist
-                ? `Olá, ${user.name}. Registre a baixa dos implantes usados na clínica ${user.clinic}.`
+                ? `Olá, ${user.name}. Registre a baixa dos implantes usados na ${clinicName(user.clinic)}.`
                 : 'Registre o uso em OC ou RO e compre exatamente o que foi utilizado.'}
             </p>
             <div className="hero-actions">
@@ -640,7 +648,7 @@ export default function App() {
             <div>
               <strong>{user.name}</strong>
               <div className="meta">
-                {isAdmin ? 'Admin · acesso total' : `Dentista · clínica ${user.clinic}`}
+                {isAdmin ? 'Admin · acesso total' : `Dentista · ${clinicName(user.clinic)}`}
               </div>
             </div>
             <button className="btn btn-outline" style={{ width: 'auto', padding: '0 14px' }} onClick={handleLogout}>
@@ -700,7 +708,7 @@ export default function App() {
                       onClick={() => { setClinic(c); setTab('pedidos'); }}
                     >
                       <div>
-                        <div className="title">Clínica {c}</div>
+                        <div className="title">{clinicName(c)}</div>
                         <div className="meta">
                           {info ? `${info.units} un. em ${info.items} itens aguardando pedido` : 'Nenhum uso pendente'}
                         </div>
@@ -767,7 +775,7 @@ export default function App() {
           <h2 className="brand-mark" style={{ fontSize: '1.8rem', marginBottom: 4 }}>Registrar uso</h2>
           <p className="lede">
             {isDentist
-              ? `Baixa automática na clínica ${user.clinic}.`
+              ? `Baixa automática na ${clinicName(user.clinic)}.`
               : 'Baixa o estoque e acumula o que a clínica precisa comprar.'}
           </p>
 
@@ -779,14 +787,14 @@ export default function App() {
                   className={`clinic-btn ${clinic === c ? 'active' : ''}`}
                   onClick={() => setClinic(c)}
                 >
-                  Clínica {c}
+                  {clinicName(c)}
                 </button>
               ))}
             </div>
           ) : (
             <div className="panel" style={{ marginBottom: 12 }}>
-              <strong>Clínica {user.clinic}</strong>
-              <div className="meta">Seu acesso está vinculado a esta clínica.</div>
+              <strong>{clinicName(user.clinic)}</strong>
+              <div className="meta">Seu acesso está vinculado a esta unidade.</div>
             </div>
           )}
 
@@ -844,13 +852,13 @@ export default function App() {
                 className={`clinic-btn ${clinic === c ? 'active' : ''}`}
                 onClick={() => setClinic(c)}
               >
-                Clínica {c}
+                {clinicName(c)}
               </button>
             ))}
           </div>
 
           <div className="panel" style={{ marginBottom: 12 }}>
-            <strong>Uso pendente · {clinic}</strong>
+            <strong>Uso pendente · {clinicName(clinic)}</strong>
             <div className="meta" style={{ margin: '6px 0 10px' }}>
               {pendingForClinic.length
                 ? `${pendingForClinic.reduce((s, i) => s + i.quantity, 0)} unidades para comprar`
@@ -944,7 +952,7 @@ export default function App() {
                 <div key={c.clinic} className="panel report-clinic" style={{ marginBottom: 12 }}>
                   <div className="report-clinic-head">
                     <div>
-                      <strong>Clínica {c.clinic}</strong>
+                      <strong>{clinicName(c.clinic)}</strong>
                       <div className="meta">{c.totalEvents} registros · {c.totalUnits} unidades</div>
                     </div>
                     <span className="qty">{c.totalUnits}</span>
@@ -983,7 +991,7 @@ export default function App() {
                   <div className="daily-list">
                     {report.daily.map((d) => (
                       <div key={`${d.day}-${d.clinic}`} className="report-item">
-                        <span>{formatDay(d.day)} · {d.clinic}</span>
+                        <span>{formatDay(d.day)} · {clinicName(d.clinic)}</span>
                         <strong>{d.quantity}</strong>
                       </div>
                     ))}
@@ -1021,7 +1029,7 @@ export default function App() {
             <label className="field">
               <span>Clínica</span>
               <select className="select" value={userForm.clinic} onChange={(e) => setUserForm({ ...userForm, clinic: e.target.value })}>
-                {CLINICS.map((c) => <option key={c} value={c}>{c}</option>)}
+                {CLINICS.map((c) => <option key={c} value={c}>{clinicName(c)}</option>)}
               </select>
             </label>
             <button className="btn btn-solid" disabled={loading} style={{ marginTop: 10 }}>Cadastrar dentista</button>
@@ -1034,7 +1042,7 @@ export default function App() {
                   <div>
                     <div className="title">{u.name}</div>
                     <div className="meta">
-                      @{u.username} · {u.role === 'admin' ? 'admin' : `dentista · ${u.clinic}`}
+                      @{u.username} · {u.role === 'admin' ? 'admin' : `dentista · ${clinicName(u.clinic)}`}
                       {!u.active ? ' · inativo' : ''}
                     </div>
                   </div>
