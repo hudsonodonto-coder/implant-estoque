@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from './api';
+import { api, getToken, setToken } from './api';
 import './index.css';
 
 const CLINICS = ['OC', 'RO'];
@@ -43,6 +43,16 @@ function IconReport() {
     </svg>
   );
 }
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 19c0-3 2.5-5 6-5s6 2 6 5" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M21 19c0-2.2-1.8-4-4-4-.7 0-1.4.2-2 .5" />
+    </svg>
+  );
+}
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -60,7 +70,7 @@ function formatDay(isoDay) {
   });
 }
 
-const TAB_KEYS = ['home', 'estoque', 'uso', 'pedidos', 'relatorio'];
+const TAB_KEYS = ['home', 'estoque', 'uso', 'pedidos', 'relatorio', 'equipe'];
 
 function tabFromHash() {
   if (typeof window === 'undefined') return 'home';
@@ -81,11 +91,16 @@ function isStandalone() {
 }
 
 export default function App() {
+  const [authReady, setAuthReady] = useState(false);
+  const [configured, setConfigured] = useState(true);
+  const [user, setUser] = useState(null);
+  const [authForm, setAuthForm] = useState({ name: '', username: '', password: '' });
   const [tab, setTab] = useState(tabFromHash);
   const [summary, setSummary] = useState(null);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [pending, setPending] = useState([]);
+  const [users, setUsers] = useState([]);
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState('');
   const [status, setStatus] = useState('');
@@ -98,6 +113,11 @@ export default function App() {
   const [orderDetail, setOrderDetail] = useState(null);
   const [receiveQtys, setReceiveQtys] = useState({});
   const [allFamilies, setAllFamilies] = useState(['HE', 'GM', 'NGM']);
+  const [userForm, setUserForm] = useState({
+    name: '', username: '', password: '', clinic: 'OC', role: 'dentist',
+  });
+  const isAdmin = user?.role === 'admin';
+  const isDentist = user?.role === 'dentist';
   const [report, setReport] = useState(null);
   const [reportMonth, setReportMonth] = useState(() => {
     const now = new Date();
@@ -112,22 +132,60 @@ export default function App() {
   );
 
   async function refreshAll() {
-    const [s, p, o, u] = await Promise.all([
-      api.summary(),
-      api.products({ q: query, family, status }),
-      api.orders(),
-      api.pendingUsage(),
-    ]);
-    setSummary(s);
-    setProducts(p);
-    setOrders(o);
-    setPending(u);
+    if (!user) return;
+    const tasks = [api.summary(), api.products({ q: query, family, status })];
+    if (user.role === 'admin') tasks.push(api.orders(), api.pendingUsage());
+    const results = await Promise.all(tasks);
+    setSummary(results[0]);
+    setProducts(results[1]);
+    if (user.role === 'admin') {
+      setOrders(results[2]);
+      setPending(results[3]);
+    } else {
+      setOrders([]);
+      setPending([]);
+    }
   }
 
   useEffect(() => {
-    refreshAll().catch((e) => showToast(e.message));
-    setInstalled(isStandalone());
+    let cancelled = false;
+    (async () => {
+      try {
+        const statusRes = await api.authStatus();
+        if (cancelled) return;
+        setConfigured(statusRes.configured);
+        if (statusRes.configured && getToken()) {
+          const me = await api.me();
+          if (cancelled) return;
+          setUser(me.user);
+          if (me.user.role === 'dentist' && me.user.clinic) {
+            setClinic(me.user.clinic);
+            setReportClinic(me.user.clinic);
+          }
+        }
+      } catch (e) {
+        if (e.code === 401) setToken('');
+      } finally {
+        if (!cancelled) {
+          setAuthReady(true);
+          setInstalled(isStandalone());
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    refreshAll().catch((e) => {
+      if (e.code === 401) {
+        setToken('');
+        setUser(null);
+      } else {
+        showToast(e.message);
+      }
+    });
+  }, [user]);
 
   useEffect(() => {
     const desired = tab === 'home' ? '' : `#${tab}`;
@@ -138,23 +196,35 @@ export default function App() {
 
   useEffect(() => {
     function onHash() {
-      setTab(tabFromHash());
+      const next = tabFromHash();
+      if (user?.role === 'dentist' && (next === 'pedidos' || next === 'equipe')) {
+        setTab('home');
+        return;
+      }
+      setTab(next);
     }
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     api.products({ q: query, family, status })
       .then(setProducts)
       .catch((e) => showToast(e.message));
-  }, [query, family, status]);
+  }, [query, family, status, user]);
 
   useEffect(() => {
+    if (!user) return;
     api.products()
       .then((rows) => setAllFamilies([...new Set(rows.map((p) => p.family))]))
       .catch(() => {});
-  }, []);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin' || tab !== 'equipe') return;
+    api.users().then(setUsers).catch((e) => showToast(e.message));
+  }, [user, tab]);
 
   useEffect(() => {
     function onBeforeInstall(e) {
@@ -164,7 +234,7 @@ export default function App() {
     function onInstalled() {
       setInstalled(true);
       setInstallEvent(null);
-      showToast('Impla instalado no celular');
+      showToast('App instalado no celular');
     }
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     window.addEventListener('appinstalled', onInstalled);
@@ -178,16 +248,94 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (tab !== 'relatorio') return;
+    if (!user || tab !== 'relatorio') return;
     const [year, month] = reportMonth.split('-').map(Number);
-    api.monthlyUsage({ year, month, clinic: reportClinic || undefined })
+    const clinicFilter = user.role === 'dentist' ? user.clinic : (reportClinic || undefined);
+    api.monthlyUsage({ year, month, clinic: clinicFilter })
       .then(setReport)
       .catch((e) => showToast(e.message));
-  }, [tab, reportMonth, reportClinic]);
+  }, [tab, reportMonth, reportClinic, user]);
 
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(''), 2800);
+  }
+
+  async function handleAuthSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const result = configured
+        ? await api.login({ username: authForm.username, password: authForm.password })
+        : await api.setup({
+          name: authForm.name || 'Administrador',
+          username: authForm.username || 'admin',
+          password: authForm.password,
+        });
+      setToken(result.token);
+      setUser(result.user);
+      setConfigured(true);
+      if (result.user.role === 'dentist' && result.user.clinic) {
+        setClinic(result.user.clinic);
+        setReportClinic(result.user.clinic);
+      }
+      setAuthForm({ name: '', username: '', password: '' });
+      showToast(`Olá, ${result.user.name}`);
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLogout() {
+    try { await api.logout(); } catch { /* ignore */ }
+    setToken('');
+    setUser(null);
+    setTab('home');
+    showToast('Sessão encerrada');
+  }
+
+  async function handleCreateUser(e) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.createUser(userForm);
+      setUsers(await api.users());
+      setUserForm({ name: '', username: '', password: '', clinic: 'OC', role: 'dentist' });
+      showToast('Usuário cadastrado');
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleUserActive(u) {
+    setLoading(true);
+    try {
+      await api.updateUser(u.id, { active: !u.active });
+      setUsers(await api.users());
+      showToast(u.active ? 'Acesso desativado' : 'Acesso reativado');
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resetUserPassword(u) {
+    const password = window.prompt(`Nova senha para ${u.name}:`);
+    if (!password) return;
+    setLoading(true);
+    try {
+      await api.updateUser(u.id, { password });
+      showToast('Senha atualizada');
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const pendingForClinic = useMemo(
@@ -221,11 +369,12 @@ export default function App() {
     if (!cartItems.length) return;
     setLoading(true);
     try {
-      await api.registerUsage({ clinic, items: cartItems, note: `Uso clínica ${clinic}` });
+      const useClinic = isDentist ? user.clinic : clinic;
+      await api.registerUsage({ clinic: useClinic, items: cartItems });
       setCart({});
       await refreshAll();
-      showToast(`Uso registrado em ${clinic}`);
-      setTab('pedidos');
+      showToast(`Uso registrado em ${useClinic}`);
+      setTab(isAdmin ? 'pedidos' : 'home');
     } catch (e) {
       showToast(e.message);
     } finally {
@@ -400,6 +549,73 @@ export default function App() {
     }
   }
 
+  if (!authReady) {
+    return (
+      <div className="app-shell">
+        <div className="empty">Carregando…</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="app-shell">
+        <section className="hero">
+          <div className="brand-mark" style={{ opacity: 0.85, marginBottom: 10, fontSize: '0.95rem' }}>
+            Implantes
+          </div>
+          <h1>{configured ? 'Entrar' : 'Criar acesso admin'}</h1>
+          <p>
+            {configured
+              ? 'Use o login e a senha cadastrados.'
+              : 'Primeiro acesso: defina o administrador com acesso total.'}
+          </p>
+        </section>
+        <form className="section panel" onSubmit={handleAuthSubmit}>
+          {!configured && (
+            <label className="field">
+              <span>Seu nome</span>
+              <input
+                className="search"
+                value={authForm.name}
+                onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                placeholder="Ex.: Hudson"
+              />
+            </label>
+          )}
+          <label className="field">
+            <span>Usuário (login)</span>
+            <input
+              className="search"
+              autoCapitalize="none"
+              autoCorrect="off"
+              value={authForm.username}
+              onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
+              placeholder="ex.: hudson"
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Senha</span>
+            <input
+              className="search"
+              type="password"
+              value={authForm.password}
+              onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+              placeholder="mínimo 4 caracteres"
+              required
+              minLength={4}
+            />
+          </label>
+          <button className="btn btn-solid" disabled={loading} style={{ marginTop: 12 }}>
+            {configured ? 'Entrar' : 'Criar administrador'}
+          </button>
+        </form>
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       {tab === 'home' && (
@@ -409,12 +625,28 @@ export default function App() {
               Implantes
             </div>
             <h1>Estoque atual por clínica</h1>
-            <p>Registre o uso em OC ou RO e compre exatamente o que foi utilizado.</p>
+            <p>
+              {isDentist
+                ? `Olá, ${user.name}. Registre a baixa dos implantes usados na clínica ${user.clinic}.`
+                : 'Registre o uso em OC ou RO e compre exatamente o que foi utilizado.'}
+            </p>
             <div className="hero-actions">
               <button className="btn btn-primary" onClick={() => { setStatus(''); setTab('uso'); }}>Registrar uso</button>
               <button className="btn btn-ghost" onClick={() => setTab('relatorio')}>Relatório</button>
             </div>
           </section>
+
+          <div className="section panel" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+            <div>
+              <strong>{user.name}</strong>
+              <div className="meta">
+                {isAdmin ? 'Admin · acesso total' : `Dentista · clínica ${user.clinic}`}
+              </div>
+            </div>
+            <button className="btn btn-outline" style={{ width: 'auto', padding: '0 14px' }} onClick={handleLogout}>
+              Sair
+            </button>
+          </div>
 
           {showInstall && (
             <section className="install-banner section">
@@ -422,7 +654,7 @@ export default function App() {
                 <strong>Instalar no celular</strong>
                 <p>
                   {installEvent
-                    ? 'Adicione o Impla à tela inicial e use como app.'
+                    ? 'Adicione o app à tela inicial.'
                     : 'No iPhone: Compartilhar → “Adicionar à Tela de Início”.'}
                 </p>
               </div>
@@ -454,37 +686,41 @@ export default function App() {
             )}
           </section>
 
-          <section className="section">
-            <h2>Uso por clínica</h2>
-            <p className="lede">A clínica compra a quantidade que usou — não só o mínimo.</p>
-            <div className="list">
-              {CLINICS.map((c) => {
-                const info = summary?.pendingByClinic?.[c];
-                return (
-                  <button
-                    key={c}
-                    className="row"
-                    onClick={() => { setClinic(c); setTab('pedidos'); }}
-                  >
-                    <div>
-                      <div className="title">Clínica {c}</div>
-                      <div className="meta">
-                        {info ? `${info.units} un. em ${info.items} itens aguardando pedido` : 'Nenhum uso pendente'}
+          {isAdmin && (
+            <section className="section">
+              <h2>Uso por clínica</h2>
+              <p className="lede">A clínica compra a quantidade que usou — não só o mínimo.</p>
+              <div className="list">
+                {CLINICS.map((c) => {
+                  const info = summary?.pendingByClinic?.[c];
+                  return (
+                    <button
+                      key={c}
+                      className="row"
+                      onClick={() => { setClinic(c); setTab('pedidos'); }}
+                    >
+                      <div>
+                        <div className="title">Clínica {c}</div>
+                        <div className="meta">
+                          {info ? `${info.units} un. em ${info.items} itens aguardando pedido` : 'Nenhum uso pendente'}
+                        </div>
                       </div>
-                    </div>
-                    <span className={`badge ${info ? 'buy' : 'ok'}`}>{info ? 'Comprar' : 'OK'}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+                      <span className={`badge ${info ? 'buy' : 'ok'}`}>{info ? 'Comprar' : 'OK'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
         </>
       )}
 
       {tab === 'estoque' && (
         <section className="section" style={{ marginTop: 0 }}>
           <h2 className="brand-mark" style={{ fontSize: '1.8rem', marginBottom: 4 }}>Estoque</h2>
-          <p className="lede">Código + quantidade. Toque para entrada ou saída.</p>
+          <p className="lede">
+            {isAdmin ? 'Código + quantidade. Toque para entrada ou saída.' : 'Consulta do estoque atual (somente leitura).'}
+          </p>
           <div className="toolbar">
             <input
               className="search"
@@ -505,7 +741,11 @@ export default function App() {
               <button
                 key={p.id}
                 className="row"
-                onClick={() => { setSelected(p); setAdjustQty(1); }}
+                onClick={() => {
+                  if (!isAdmin) return;
+                  setSelected(p);
+                  setAdjustQty(1);
+                }}
               >
                 <div>
                   <div className="title">{p.name}</div>
@@ -525,19 +765,30 @@ export default function App() {
       {tab === 'uso' && (
         <section className="section" style={{ marginTop: 0 }}>
           <h2 className="brand-mark" style={{ fontSize: '1.8rem', marginBottom: 4 }}>Registrar uso</h2>
-          <p className="lede">Baixa o estoque e acumula o que a clínica precisa comprar.</p>
+          <p className="lede">
+            {isDentist
+              ? `Baixa automática na clínica ${user.clinic}.`
+              : 'Baixa o estoque e acumula o que a clínica precisa comprar.'}
+          </p>
 
-          <div className="clinic-switch">
-            {CLINICS.map((c) => (
-              <button
-                key={c}
-                className={`clinic-btn ${clinic === c ? 'active' : ''}`}
-                onClick={() => setClinic(c)}
-              >
-                Clínica {c}
-              </button>
-            ))}
-          </div>
+          {isAdmin ? (
+            <div className="clinic-switch">
+              {CLINICS.map((c) => (
+                <button
+                  key={c}
+                  className={`clinic-btn ${clinic === c ? 'active' : ''}`}
+                  onClick={() => setClinic(c)}
+                >
+                  Clínica {c}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="panel" style={{ marginBottom: 12 }}>
+              <strong>Clínica {user.clinic}</strong>
+              <div className="meta">Seu acesso está vinculado a esta clínica.</div>
+            </div>
+          )}
 
           <div className="toolbar">
             <input
@@ -575,13 +826,13 @@ export default function App() {
 
           <div style={{ marginTop: 14, position: 'sticky', bottom: calcSticky(), zIndex: 5 }}>
             <button className="btn btn-accent" disabled={!cartTotal || loading} onClick={submitUsage}>
-              Confirmar uso · {cartTotal} un. · {clinic}
+              Confirmar uso · {cartTotal} un. · {isDentist ? user.clinic : clinic}
             </button>
           </div>
         </section>
       )}
 
-      {tab === 'pedidos' && (
+      {tab === 'pedidos' && isAdmin && (
         <section className="section" style={{ marginTop: 0 }}>
           <h2 className="brand-mark" style={{ fontSize: '1.8rem', marginBottom: 4 }}>Pedidos</h2>
           <p className="lede">Gere a compra a partir do uso da clínica, ou pelo mínimo.</p>
@@ -662,8 +913,10 @@ export default function App() {
           </div>
 
           <div className="chips" style={{ marginBottom: 12 }}>
-            <button className={`chip ${!reportClinic ? 'active' : ''}`} onClick={() => setReportClinic('')}>Todas</button>
-            {CLINICS.map((c) => (
+            {!isDentist && (
+              <button className={`chip ${!reportClinic ? 'active' : ''}`} onClick={() => setReportClinic('')}>Todas</button>
+            )}
+            {(isDentist ? [user.clinic] : CLINICS).map((c) => (
               <button key={c} className={`chip ${reportClinic === c ? 'active' : ''}`} onClick={() => setReportClinic(c)}>
                 {c}
               </button>
@@ -746,7 +999,62 @@ export default function App() {
         </section>
       )}
 
-      <nav className="bottom-nav bottom-nav-5">
+      {tab === 'equipe' && isAdmin && (
+        <section className="section" style={{ marginTop: 0 }}>
+          <h2 className="brand-mark" style={{ fontSize: '1.8rem', marginBottom: 4 }}>Equipe</h2>
+          <p className="lede">Cadastre dentistas com senha e clínica para eles darem baixa no uso.</p>
+
+          <form className="panel" onSubmit={handleCreateUser} style={{ marginBottom: 14 }}>
+            <strong>Novo acesso</strong>
+            <label className="field">
+              <span>Nome</span>
+              <input className="search" value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} required />
+            </label>
+            <label className="field">
+              <span>Login</span>
+              <input className="search" autoCapitalize="none" value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} required />
+            </label>
+            <label className="field">
+              <span>Senha</span>
+              <input className="search" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} required minLength={4} />
+            </label>
+            <label className="field">
+              <span>Clínica</span>
+              <select className="select" value={userForm.clinic} onChange={(e) => setUserForm({ ...userForm, clinic: e.target.value })}>
+                {CLINICS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <button className="btn btn-solid" disabled={loading} style={{ marginTop: 10 }}>Cadastrar dentista</button>
+          </form>
+
+          <div className="list">
+            {users.map((u) => (
+              <div key={u.id} className="row" style={{ gridTemplateColumns: '1fr' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, width: '100%' }}>
+                  <div>
+                    <div className="title">{u.name}</div>
+                    <div className="meta">
+                      @{u.username} · {u.role === 'admin' ? 'admin' : `dentista · ${u.clinic}`}
+                      {!u.active ? ' · inativo' : ''}
+                    </div>
+                  </div>
+                  <span className={`badge ${u.active ? 'ok' : 'buy'}`}>{u.active ? 'Ativo' : 'Off'}</span>
+                </div>
+                {u.role !== 'admin' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10, width: '100%' }}>
+                    <button className="btn btn-outline" disabled={loading} onClick={() => resetUserPassword(u)}>Nova senha</button>
+                    <button className="btn btn-outline" disabled={loading} onClick={() => toggleUserActive(u)}>
+                      {u.active ? 'Desativar' : 'Reativar'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <nav className={`bottom-nav ${isAdmin ? 'bottom-nav-5' : 'bottom-nav-4'}`}>
         <button className={`nav-item ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>
           <IconHome /> Início
         </button>
@@ -756,12 +1064,20 @@ export default function App() {
         <button className={`nav-item ${tab === 'uso' ? 'active' : ''}`} onClick={() => { setStatus(''); setTab('uso'); }}>
           <IconUse /> Uso
         </button>
-        <button className={`nav-item ${tab === 'pedidos' ? 'active' : ''}`} onClick={() => setTab('pedidos')}>
-          <IconOrders /> Pedidos
-        </button>
-        <button className={`nav-item ${tab === 'relatorio' ? 'active' : ''}`} onClick={() => setTab('relatorio')}>
-          <IconReport /> Relat.
-        </button>
+        {isAdmin ? (
+          <button className={`nav-item ${tab === 'pedidos' ? 'active' : ''}`} onClick={() => setTab('pedidos')}>
+            <IconOrders /> Pedidos
+          </button>
+        ) : (
+          <button className={`nav-item ${tab === 'relatorio' ? 'active' : ''}`} onClick={() => setTab('relatorio')}>
+            <IconReport /> Relat.
+          </button>
+        )}
+        {isAdmin ? (
+          <button className={`nav-item ${tab === 'equipe' ? 'active' : ''}`} onClick={() => setTab('equipe')}>
+            <IconUsers /> Equipe
+          </button>
+        ) : null}
       </nav>
 
       {toast && <div className="toast">{toast}</div>}
@@ -776,11 +1092,18 @@ export default function App() {
               <span>{adjustQty}</span>
               <button onClick={() => setAdjustQty((q) => q + 1)}>+</button>
             </div>
+            {isAdmin && (
             <div className="sheet-actions">
               <button className="btn btn-solid" disabled={loading} onClick={() => doAdjust('entrada')}>Entrada (+)</button>
               <button className="btn btn-outline" disabled={loading || selected.quantity < adjustQty} onClick={() => doAdjust('saida')}>Saída (−)</button>
               <button className="btn btn-outline" onClick={() => setSelected(null)}>Cancelar</button>
             </div>
+          )}
+          {!isAdmin && (
+            <div className="sheet-actions">
+              <button className="btn btn-outline" onClick={() => setSelected(null)}>Fechar</button>
+            </div>
+          )}
           </div>
         </div>
       )}

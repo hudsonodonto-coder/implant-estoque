@@ -1,16 +1,46 @@
 const base = '';
+const TOKEN_KEY = 'impla_token';
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY) || '';
+}
+
+export function setToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
 
 async function request(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(`${base}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
+    headers,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    const err = new Error(data.error || 'Faça login para continuar');
+    err.code = 401;
+    throw err;
+  }
   if (!res.ok) throw new Error(data.error || 'Falha na requisição');
   return data;
 }
 
 export const api = {
+  authStatus: () => request('/api/auth/status'),
+  setup: (body) => request('/api/auth/setup', { method: 'POST', body: JSON.stringify(body) }),
+  login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  logout: () => request('/api/auth/logout', { method: 'POST', body: '{}' }),
+  me: () => request('/api/auth/me'),
+  users: () => request('/api/users'),
+  createUser: (body) => request('/api/users', { method: 'POST', body: JSON.stringify(body) }),
+  updateUser: (id, body) => request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   summary: () => request('/api/summary'),
   products: (params = {}) => {
     const q = new URLSearchParams(params);
