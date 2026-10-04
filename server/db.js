@@ -511,6 +511,26 @@ function updateOpenOrderItems(orderId, items) {
   return tx();
 }
 
+function deleteOrder(orderId) {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!order) throw new Error('Pedido não encontrado');
+  if (order.status === 'aberto') {
+    throw new Error('Cancele o pedido aberto antes de excluir');
+  }
+  if (order.status === 'recebido' || order.status === 'parcial') {
+    throw new Error('Pedidos recebidos não podem ser excluídos');
+  }
+
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE movements SET order_id = NULL WHERE order_id = ?').run(orderId);
+    db.prepare('DELETE FROM order_items WHERE order_id = ?').run(orderId);
+    db.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
+    return { id: orderId, deleted: true };
+  });
+
+  return tx();
+}
+
 function listOrders() {
   return db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
 }
@@ -672,6 +692,7 @@ module.exports = {
   receiveOrder,
   cancelOrder,
   updateOpenOrderItems,
+  deleteOrder,
   listOrders,
   getOrder,
   listMovements,

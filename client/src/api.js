@@ -26,6 +26,7 @@ export const api = {
   orderFromMinimum: (clinic) => request('/api/orders/from-minimum', { method: 'POST', body: JSON.stringify({ clinic }) }),
   receiveOrder: (id, body = {}) => request(`/api/orders/${id}/receive`, { method: 'POST', body: JSON.stringify(body) }),
   cancelOrder: (id) => request(`/api/orders/${id}/cancel`, { method: 'POST', body: '{}' }),
+  deleteOrder: (id) => request(`/api/orders/${id}`, { method: 'DELETE' }),
   updateOrderItems: (id, items) => request(`/api/orders/${id}/items`, { method: 'PATCH', body: JSON.stringify({ items }) }),
   movements: () => request('/api/movements'),
   monthlyUsage: (params = {}) => {

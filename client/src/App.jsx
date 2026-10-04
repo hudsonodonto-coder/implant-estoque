@@ -323,6 +323,23 @@ export default function App() {
     }
   }
 
+  async function deleteSelectedOrder() {
+    if (!orderDetail) return;
+    if (!window.confirm('Excluir este pedido permanentemente?')) return;
+    setLoading(true);
+    try {
+      await api.deleteOrder(orderDetail.id);
+      await refreshAll();
+      setOrderDetail(null);
+      setReceiveQtys({});
+      showToast('Pedido excluído');
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function doAdjust(type) {
     if (!selected || adjustQty < 1) return;
     setLoading(true);
@@ -815,6 +832,11 @@ export default function App() {
                     Cancelar pedido
                   </button>
                 </>
+              )}
+              {(orderDetail.status === 'cancelado' || orderDetail.status === 'historico') && (
+                <button className="btn btn-outline" disabled={loading} onClick={deleteSelectedOrder}>
+                  Excluir pedido
+                </button>
               )}
               <button className="btn btn-outline" onClick={() => { setOrderDetail(null); setReceiveQtys({}); }}>Fechar</button>
             </div>

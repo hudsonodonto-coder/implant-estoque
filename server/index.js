@@ -13,6 +13,7 @@ const {
   receiveOrder,
   cancelOrder,
   updateOpenOrderItems,
+  deleteOrder,
   listOrders,
   getOrder,
   listMovements,
@@ -125,6 +126,15 @@ app.post('/api/orders/:id/cancel', (req, res) => {
   try {
     const order = cancelOrder(req.params.id);
     res.json({ ok: true, order, summary: getSummary() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/orders/:id', (req, res) => {
+  try {
+    const result = deleteOrder(req.params.id);
+    res.json({ ok: true, ...result, summary: getSummary() });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
