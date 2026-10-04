@@ -1,0 +1,341 @@
+{
+  "products": [
+    {
+      "name": "Implante HE 3.75 x 8",
+      "code": "140.119",
+      "quantity": 1,
+      "minimum": 2,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 3.75 x 10",
+      "code": "140.120",
+      "quantity": 1,
+      "minimum": 2,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 3.75 x 11.5",
+      "code": "140.121",
+      "quantity": 3,
+      "minimum": 6,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 3.75 x 13",
+      "code": "140.122",
+      "quantity": 4,
+      "minimum": 6,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 3.75 x 16",
+      "code": "140.123",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.0 x 8",
+      "code": "140.125",
+      "quantity": 1,
+      "minimum": 3,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.0 x 10",
+      "code": "140.126",
+      "quantity": 2,
+      "minimum": 3,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.0 x 11.5",
+      "code": "140.127",
+      "quantity": 3,
+      "minimum": 4,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.0 x 13",
+      "code": "140.128",
+      "quantity": 3,
+      "minimum": 4,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.0 x 16",
+      "code": "140.129",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.3 x 8",
+      "code": "140.1031",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.3 x 10",
+      "code": "140.1032",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.3 x 11.5",
+      "code": "140.1033",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 4.3 x 13",
+      "code": "140.1034",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 5.0 x 8",
+      "code": "140.1037",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 5.0 x 10",
+      "code": "140.1038",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 5.0 x 11.5",
+      "code": "140.1039",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante HE 5.0 x 13",
+      "code": "140.1040",
+      "quantity": 2,
+      "minimum": 1,
+      "family": "HE"
+    },
+    {
+      "name": "Implante GM 3.5 x 8",
+      "code": "140.943",
+      "quantity": 2,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.5 x 10",
+      "code": "140.944",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.5 x 11.5",
+      "code": "140.945",
+      "quantity": 2,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.5 x 13",
+      "code": "140.946",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.75 x 8",
+      "code": "140.976",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.75 x 10",
+      "code": "140.977",
+      "quantity": 3,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.75 x 11.5",
+      "code": "140.978",
+      "quantity": 4,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 3.75 x 13",
+      "code": "140.979",
+      "quantity": 1,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.0 x 8",
+      "code": "140.982",
+      "quantity": 3,
+      "minimum": 1,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.0 x 10",
+      "code": "140.983",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.0 x 11.5",
+      "code": "140.984",
+      "quantity": 1,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.0 x 13",
+      "code": "140.985",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.3 x 8",
+      "code": "140.948",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.3 x 10",
+      "code": "140.949",
+      "quantity": 1,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.3 x 11.5",
+      "code": "140.950",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 4.3 x 13",
+      "code": "140.951",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 5.0 x 8",
+      "code": "140.953",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 5.0 x 10",
+      "code": "140.954",
+      "quantity": 1,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 5.0 x 11.5",
+      "code": "140.955",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante GM 5.0 x 13",
+      "code": "140.956",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "GM"
+    },
+    {
+      "name": "Implante NGM 2.9 x 10",
+      "code": "140.1063",
+      "quantity": 1,
+      "minimum": 1,
+      "family": "NGM"
+    },
+    {
+      "name": "Implante NGM 2.9 x 12",
+      "code": "140.1064",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "NGM"
+    },
+    {
+      "name": "Implante NGM 2.9 x 14",
+      "code": "140.1065",
+      "quantity": 0,
+      "minimum": 0,
+      "family": "NGM"
+    }
+  ],
+  "orders": [
+    {
+      "id": "cbd5ef35",
+      "date": "2026-03-27T23:32:03",
+      "text": "INICIO",
+      "clinic": "OC"
+    },
+    {
+      "id": "5d664194",
+      "date": "2026-04-28T16:46:25",
+      "text": "Pedido de reposição:\n\nCod. 140.120 - Implante HE 3.75 x 10 → 1 unidades \nCod. 140.125 - Implante HE 4.0 x 8 → 1 unidades \nCod. 140.126 - Implante HE 4.0 x 10 → 2 unidades \nCod. 140.127 - Implante HE 4.0 x 11.5 → 1 unidades \nCod. 140.129 - Implante HE 4.0 x 16 → 1 unidade \nCod. 140.1032 - Implante HE 4.3 x 10 → 1 unidade \nCod. 140.1038 - Implante HE 5.0 x 10 → 1 unidade \nCod. 140.1039 - Implante HE 5.0 x 11.5 → 1 unidade \nCod. 109.604 - Implante WS 4.0 x 5.0 → 1 unidade\n\nTOTAL: 10 unidades",
+      "clinic": "RO"
+    },
+    {
+      "id": "7e120e86",
+      "date": "2026-05-07T16:30:35",
+      "text": "Pedido de reposição:\n\nCod. 140.122 - Implante HE 3.75 x 13 → 3 unidades \nCod. 140.979 - Implante GM 3.75 x 13 → 1 unidade \nCod. 140.978 - Implante GM 3.75 x 11.5 → 1 unidade\n\nTOTAL: 5 unidades",
+      "clinic": "RO"
+    },
+    {
+      "id": "4bb45e0f",
+      "date": "2026-05-29T17:06:03",
+      "text": "Pedido de reposição:\n\nCod. 140.120 - Implante HE 3.75 x 10 → 1 unidade \nCod. 140.121 - Implante HE 3.75 x 11.5 → 4 unidades \nCod. 140.122 - Implante HE 3.75 x 13 → 2 unidades \nCod. 140.125 - Implante HE 4.0 x 8 → 2 unidades \nCod. 140.127 - Implante HE 4.0 x 11.5 → 1 unidades \nCod. 140.128 - Implante HE 4.0 x 13 → 1 unidade \nCod. 140.1037 - Implante HE 5.0 x 8 → 1 unidade \nCod. 140.1038 - Implante HE 5.0 x 10 → 1 unidade \nCod. 140.1040 - Implante HE 5.0 x 13 → 1 unidade \nCod. 140.945 - Implante GM 3.5 x 11.5 → 1 unidade\n\nTOTAL: 15 unidades",
+      "clinic": "OC"
+    },
+    {
+      "id": "e8382605",
+      "date": "2026-06-11T15:01:53",
+      "text": "Pedido de reposição:\n\nCod. 140.119 - Implante HE 3.75 x 8 → 2 unidades \nCod. 140.121 - Implante HE 3.75 x 11.5 → 4 unidades \nCod. 140.125 - Implante HE 4.0 x 8 → 2 unidades \nCod. 140.126 - Implante HE 4.0 x 10 → 1 unidade \nCod. 140.127 - Implante HE 4.0 x 11.5 → 2 unidades \nCod. 140.128 - Implante HE 4.0 x 13 → 2 unidades \nCod. 140.129 - Implante HE 4.0 x 16 → 1 unidade \nCod. 140.1031 - Implante HE 4.3 x 8 → 1 unidade \nCod. 140.1037 - Implante HE 5.0 x 8 → 1 unidade \nCod. 140.1038 - Implante HE 5.0 x 10 → 1 unidade \nCod. 140.944 - Implante GM 3.5 x 10 → 1 unidade \nCod. 140.945 - Implante GM 3.5 x 11.5 → 1 unidade \nCod. 140.978 - Implante GM 3.75 x 11.5 → 1 unidade\n\nTOTAL: 20 unidades",
+      "clinic": "RO"
+    },
+    {
+      "id": "415eede7",
+      "date": "2026-07-10T18:21:00",
+      "text": "10 implantes GM (Dr. Daniel)",
+      "clinic": "OC"
+    },
+    {
+      "id": "791464f4",
+      "date": "2026-08-17T21:11:12",
+      "text": "Pedido de reposição:\n\nCod. 140.119 - Implante HE 3.75 x 8 → 2 unidades \nCod. 140.120 - Implante HE 3.75 x 10 → 1 unidade \nCod. 140.121 - Implante HE 3.75 x 11.5 → 2 unidades \nCod. 140.125 - Implante HE 4.0 x 8 → 2 unidades \nCod. 140.126 - Implante HE 4.0 x 10 → 2 unidades \nCod. 140.1031 - Implante HE 4.3 x 8 → 1 unidade\n\nTOTAL: 10 unidades",
+      "clinic": "OC"
+    },
+    {
+      "id": "c1577408",
+      "date": "2026-09-08T17:23:24",
+      "text": "Pedido de reposição:\n\nCod. 140.120 - Implante HE 3.75 x 10 → 1 unidade\nCod. 140.121 - Implante HE 3.75 x 11.5 → 6 unidades \nCod. 140.122 - Implante HE 3.75 x 13 → 6 unidades \nCod. 140.125 - Implante HE 4.0 x 8 → 2 unidades \nCod. 140.126 - Implante HE 4.0 x 10 → 2 unidades \nCod. 140.127 - Implante HE 4.0 x 11.5 → 1 unidade\nCod. 140.1031 - Implante HE 4.3 x 8 → 1 unidade \nCod. 140.1063 - Implante NGM 2.9 x 10 → 1 unidade\n\nTOTAL: 20 unidades",
+      "clinic": "RO"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+node_modules
+client/node_modules
+client/dist
+client/dev-dist
+data/*.db
+data/*.db-*
+.git
+.gitignore
+*.md
+.DS_Store
+npm-debug.log*
