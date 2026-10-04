@@ -55,6 +55,10 @@ export const api = {
   order: (id) => request(`/api/orders/${id}`),
   orderFromUsage: (clinic) => request('/api/orders/from-usage', { method: 'POST', body: JSON.stringify({ clinic }) }),
   orderFromMinimum: (clinic) => request('/api/orders/from-minimum', { method: 'POST', body: JSON.stringify({ clinic }) }),
+  updateMinimum: (id, minimum) => request(`/api/products/${id}/minimum`, {
+    method: 'PATCH',
+    body: JSON.stringify({ minimum }),
+  }),
   receiveOrder: (id, body = {}) => request(`/api/orders/${id}/receive`, { method: 'POST', body: JSON.stringify(body) }),
   cancelOrder: (id) => request(`/api/orders/${id}/cancel`, { method: 'POST', body: '{}' }),
   deleteOrder: (id) => request(`/api/orders/${id}`, { method: 'DELETE' }),
