@@ -149,14 +149,16 @@ app.post('/api/usage', requireAuth, (req, res) => {
       clinic = req.user.clinic;
     }
     if (!clinic) throw new Error('Clínica obrigatória');
+    const userName = String(req.user.name || '').trim();
+    if (!userName) throw new Error('Usuário sem nome cadastrado');
     const note = req.body.note
-      || `Uso por ${req.user.name}${req.user.role === 'dentist' ? ` · ${clinic}` : ''}`;
+      || `Uso por ${userName}${req.user.role === 'dentist' ? ` · ${clinic}` : ''}`;
     const created = registerUsage({
       clinic,
       items: req.body.items,
       note,
       userId: req.user.id,
-      userName: req.user.name,
+      userName,
     });
     res.json({ ok: true, created, summary: getSummary() });
   } catch (e) {

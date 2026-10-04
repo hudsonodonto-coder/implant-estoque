@@ -74,6 +74,33 @@ db.exec(`
 try { db.exec('ALTER TABLE movements ADD COLUMN user_id INTEGER'); } catch (_) { /* exists */ }
 try { db.exec('ALTER TABLE movements ADD COLUMN user_name TEXT'); } catch (_) { /* exists */ }
 
+function dentistFromNote(note) {
+  if (!note) return null;
+  const match = String(note).match(/^Uso por\s+(.+?)(?:\s+·\s+|$)/i);
+  return match ? match[1].trim() : null;
+}
+
+function backfillUsageDentists() {
+  const rows = db.prepare(`
+    SELECT id, note, user_name
+    FROM movements
+    WHERE type = 'uso'
+      AND (user_name IS NULL OR user_name = '')
+      AND note IS NOT NULL
+  `).all();
+  const update = db.prepare('UPDATE movements SET user_name = ? WHERE id = ?');
+  let fixed = 0;
+  for (const row of rows) {
+    const name = dentistFromNote(row.note);
+    if (!name) continue;
+    update.run(name, row.id);
+    fixed += 1;
+  }
+  if (fixed) console.log(`Backfill dentistas: ${fixed} lançamentos atualizados`);
+}
+
+backfillUsageDentists();
+
 function productStatus(row) {
   const buy = Math.max(0, row.minimum - row.quantity);
   return {
