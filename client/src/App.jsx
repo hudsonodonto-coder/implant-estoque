@@ -341,9 +341,9 @@ export default function App() {
         <>
           <section className="hero">
             <div className="brand-mark" style={{ opacity: 0.85, marginBottom: 10, fontSize: '0.95rem' }}>
-              Impla
+              Implantes
             </div>
-            <h1>Estoque vivo por clínica</h1>
+            <h1>Estoque atual por clínica</h1>
             <p>Registre o uso em OC ou RO e compre exatamente o que foi utilizado.</p>
             <div className="hero-actions">
               <button className="btn btn-primary" onClick={() => { setStatus(''); setTab('uso'); }}>Registrar uso</button>
