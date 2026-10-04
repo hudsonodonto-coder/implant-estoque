@@ -1270,6 +1270,63 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {editUser && (
+        <div className="modal-backdrop" onClick={() => setEditUser(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>Editar acesso</h3>
+            <div className="meta">{editUser.name}</div>
+            <form onSubmit={saveUserEdit}>
+              <label className="field">
+                <span>Nome</span>
+                <input
+                  className="search"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Login</span>
+                <input
+                  className="search"
+                  autoCapitalize="none"
+                  value={editForm.username}
+                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Nova senha (opcional)</span>
+                <input
+                  className="search"
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                  placeholder="Deixe em branco para manter"
+                  minLength={4}
+                />
+              </label>
+              <label className="field">
+                <span>Clínica</span>
+                <select
+                  className="select"
+                  value={editForm.clinic}
+                  onChange={(e) => setEditForm({ ...editForm, clinic: e.target.value })}
+                >
+                  {CLINICS.map((c) => (
+                    <option key={c} value={c}>{clinicName(c)}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="sheet-actions" style={{ marginTop: 14 }}>
+                <button className="btn btn-solid" disabled={loading}>Salvar</button>
+                <button type="button" className="btn btn-outline" onClick={() => setEditUser(null)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
