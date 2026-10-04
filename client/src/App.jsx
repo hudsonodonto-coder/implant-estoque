@@ -396,7 +396,7 @@ export default function App() {
       const res = await api.orderFromUsage(clinic);
       await refreshAll();
       await openOrder(res.order.id);
-      showToast(`Pedido gerado para ${clinic}`);
+      showToast(`Pedido gerado para ${clinicName(clinic)}`);
     } catch (e) {
       showToast(e.message);
     } finally {
@@ -534,15 +534,23 @@ export default function App() {
 
   function shareReportText() {
     if (!report) return '';
-    const lines = [`Impla — Uso ${report.label}`, `Total: ${report.totalUnits} unidades`, ''];
+    const lines = [`Implantes — Uso ${report.label}`, `Total: ${report.totalUnits} unidades`, ''];
     for (const c of report.clinics) {
-      lines.push(`Clínica ${c.clinic}: ${c.totalUnits} un.`);
+      lines.push(`${clinicName(c.clinic)}: ${c.totalUnits} un.`);
+      const dentists = Object.entries(c.byDentist || {}).map(([k, v]) => `${k} ${v}`).join(' · ');
+      if (dentists) lines.push(`  Dentistas: ${dentists}`);
       const families = Object.entries(c.byFamily).map(([k, v]) => `${k} ${v}`).join(' · ');
       if (families) lines.push(`  ${families}`);
       for (const item of c.items) {
         lines.push(`  ${item.code} ${item.name} → ${item.quantity}`);
       }
       lines.push('');
+    }
+    if (report.entries?.length) {
+      lines.push('Lançamentos:');
+      for (const e of report.entries) {
+        lines.push(`- ${formatDate(e.created_at)} · ${e.dentist} · ${clinicName(e.clinic)} · ${e.code} ×${e.quantity}`);
+      }
     }
     return lines.join('\n');
   }
@@ -554,6 +562,24 @@ export default function App() {
       showToast('Relatório copiado');
     } catch {
       showToast('Não foi possível copiar');
+    }
+  }
+
+  async function deleteUsageEntry(entry) {
+    if (!isAdmin) return;
+    if (!window.confirm(`Excluir uso de ${entry.dentist}?\n${entry.name} × ${entry.quantity}\nO estoque será devolvido.`)) return;
+    setLoading(true);
+    try {
+      await api.deleteUsage(entry.id);
+      await refreshAll();
+      const [year, month] = reportMonth.split('-').map(Number);
+      const clinicFilter = isDentist ? user.clinic : (reportClinic || undefined);
+      setReport(await api.monthlyUsage({ year, month, clinic: clinicFilter }));
+      showToast('Lançamento excluído e estoque devolvido');
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -834,7 +860,7 @@ export default function App() {
 
           <div style={{ marginTop: 14, position: 'sticky', bottom: calcSticky(), zIndex: 5 }}>
             <button className="btn btn-accent" disabled={!cartTotal || loading} onClick={submitUsage}>
-              Confirmar uso · {cartTotal} un. · {isDentist ? user.clinic : clinic}
+              Confirmar uso · {cartTotal} un. · {clinicName(isDentist ? user.clinic : clinic)}
             </button>
           </div>
         </section>
@@ -889,7 +915,7 @@ export default function App() {
                 onClick={() => openOrder(o.id)}
               >
                 <div>
-                  <div className="title">{o.clinic} · {o.total_units || 0} un.</div>
+                  <div className="title">{clinicName(o.clinic)} · {o.total_units || 0} un.</div>
                   <div className="meta">{formatDate(o.created_at)} · {o.source} · {o.status}</div>
                 </div>
                 <span className={`badge ${o.status === 'aberto' || o.status === 'parcial' ? 'buy' : 'ok'}`}>{o.status}</span>
@@ -971,6 +997,16 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                  {Object.keys(c.byDentist || {}).length > 0 && (
+                    <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+                      {Object.entries(c.byDentist).map(([dentist, qty]) => (
+                        <div key={dentist} className="report-item">
+                          <span>{dentist}</span>
+                          <strong>{qty}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="list" style={{ marginTop: 8 }}>
                     {c.items.map((item) => (
                       <div key={`${c.clinic}-${item.product_id}`} className="report-item">
@@ -984,6 +1020,44 @@ export default function App() {
                   </div>
                 </div>
               ))}
+
+              {report.entries?.length > 0 && (
+                <div className="panel" style={{ marginBottom: 12 }}>
+                  <strong>Lançamentos por dentista</strong>
+                  <div className="meta" style={{ margin: '4px 0 8px' }}>
+                    {isAdmin ? 'Admin pode excluir lançamento com erro (devolve ao estoque).' : 'Detalhe do que foi usado no mês.'}
+                  </div>
+                  <div className="daily-list">
+                    {report.entries.map((entry) => (
+                      <div key={entry.id} className="report-item" style={{ alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="title">{entry.dentist}</div>
+                          <div className="meta">
+                            {formatDate(entry.created_at)} · {clinicName(entry.clinic)}
+                          </div>
+                          <div className="meta">{entry.name} · Cod. {entry.code}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <strong>{entry.quantity}</strong>
+                          {isAdmin && entry.canDelete && (
+                            <button
+                              className="btn btn-outline"
+                              style={{ width: 'auto', minHeight: 32, padding: '0 10px', marginTop: 6, fontSize: '0.75rem' }}
+                              disabled={loading}
+                              onClick={() => deleteUsageEntry(entry)}
+                            >
+                              Excluir
+                            </button>
+                          )}
+                          {isAdmin && !entry.canDelete && (
+                            <div className="meta">Já recebido</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {report.daily.length > 0 && (
                 <div className="panel" style={{ marginBottom: 12 }}>
@@ -1121,7 +1195,7 @@ export default function App() {
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h3>Pedido {orderDetail.id}</h3>
             <div className="meta">
-              {orderDetail.clinic} · {orderDetail.status} · {formatDate(orderDetail.created_at)}
+              {clinicName(orderDetail.clinic)} · {orderDetail.status} · {formatDate(orderDetail.created_at)}
             </div>
 
             {orderDetail.status === 'aberto' && orderDetail.items?.length > 0 ? (

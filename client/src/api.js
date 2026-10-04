@@ -48,6 +48,7 @@ export const api = {
   },
   pendingUsage: (clinic) => request(`/api/usage/pending${clinic ? `?clinic=${clinic}` : ''}`),
   registerUsage: (body) => request('/api/usage', { method: 'POST', body: JSON.stringify(body) }),
+  deleteUsage: (id) => request(`/api/usage/${id}`, { method: 'DELETE' }),
   entrada: (body) => request('/api/entrada', { method: 'POST', body: JSON.stringify(body) }),
   saida: (body) => request('/api/saida', { method: 'POST', body: JSON.stringify(body) }),
   orders: () => request('/api/orders'),

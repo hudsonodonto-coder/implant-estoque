@@ -70,6 +70,10 @@ db.exec(`
   );
 `);
 
+// Migrations for dentist attribution on usage
+try { db.exec('ALTER TABLE movements ADD COLUMN user_id INTEGER'); } catch (_) { /* exists */ }
+try { db.exec('ALTER TABLE movements ADD COLUMN user_name TEXT'); } catch (_) { /* exists */ }
+
 function productStatus(row) {
   const buy = Math.max(0, row.minimum - row.quantity);
   return {
@@ -147,14 +151,25 @@ function applyStockChange(productId, delta) {
   return db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
 }
 
-function createMovement({ id, productId, type, quantity, clinic = null, note = null, createdAt = new Date().toISOString(), orderId = null }) {
+function createMovement({
+  id,
+  productId,
+  type,
+  quantity,
+  clinic = null,
+  note = null,
+  createdAt = new Date().toISOString(),
+  orderId = null,
+  userId = null,
+  userName = null,
+}) {
   db.prepare(`
-    INSERT INTO movements (id, product_id, type, quantity, clinic, note, created_at, order_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, productId, type, quantity, clinic, note, createdAt, orderId);
+    INSERT INTO movements (id, product_id, type, quantity, clinic, note, created_at, order_id, user_id, user_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, productId, type, quantity, clinic, note, createdAt, orderId, userId, userName);
 }
 
-function registerUsage({ clinic, items, note }) {
+function registerUsage({ clinic, items, note, userId = null, userName = null }) {
   if (!clinic) throw new Error('Clínica obrigatória');
   if (!items?.length) throw new Error('Informe ao menos um item');
 
@@ -176,8 +191,10 @@ function registerUsage({ clinic, items, note }) {
         quantity: qty,
         clinic,
         note: note || null,
+        userId,
+        userName,
       });
-      created.push({ id, productId: product.id, code: product.code, quantity: qty });
+      created.push({ id, productId: product.id, code: product.code, quantity: qty, userName });
     }
     if (!created.length) throw new Error('Nenhuma quantidade válida');
     return created;
@@ -637,6 +654,7 @@ function getMonthlyUsageReport({ year, month, clinic } = {}) {
         totalUnits: 0,
         totalEvents: 0,
         byFamily: {},
+        byDentist: {},
         items: [],
       };
     }
@@ -646,6 +664,50 @@ function getMonthlyUsageReport({ year, month, clinic } = {}) {
     c.byFamily[item.family] = (c.byFamily[item.family] || 0) + item.quantity;
     c.items.push(item);
   }
+
+  let entriesSql = `
+    SELECT m.id, m.clinic, m.product_id, m.quantity, m.created_at, m.order_id,
+           m.user_id, m.user_name, m.note,
+           p.code, p.name, p.family,
+           o.status AS order_status
+    FROM movements m
+    JOIN products p ON p.id = m.product_id
+    LEFT JOIN orders o ON o.id = m.order_id
+    WHERE m.type = 'uso'
+      AND m.created_at >= ?
+      AND m.created_at < ?
+  `;
+  const entryParams = [start, end];
+  if (clinic) {
+    entriesSql += ' AND m.clinic = ?';
+    entryParams.push(clinic);
+  }
+  entriesSql += ' ORDER BY m.created_at DESC';
+
+  const entries = db.prepare(entriesSql).all(...entryParams).map((r) => {
+    const dentist = r.user_name || 'Sem dentista';
+    const canDelete = !r.order_id || r.order_status === 'aberto' || r.order_status === 'cancelado';
+    if (byClinic[r.clinic]) {
+      byClinic[r.clinic].byDentist[dentist] = (byClinic[r.clinic].byDentist[dentist] || 0) + Number(r.quantity);
+    }
+    return {
+      id: r.id,
+      clinic: r.clinic,
+      product_id: r.product_id,
+      code: r.code,
+      name: r.name,
+      family: r.family,
+      quantity: Number(r.quantity),
+      created_at: r.created_at,
+      user_id: r.user_id,
+      user_name: r.user_name || null,
+      dentist,
+      order_id: r.order_id,
+      order_status: r.order_status || null,
+      canDelete,
+      note: r.note,
+    };
+  });
 
   const clinics = Object.values(byClinic).sort((a, b) => a.clinic.localeCompare(b.clinic));
   const totalUnits = clinics.reduce((s, c) => s + c.totalUnits, 0);
@@ -674,9 +736,68 @@ function getMonthlyUsageReport({ year, month, clinic } = {}) {
     clinic: clinic || null,
     totalUnits,
     clinics,
+    entries,
     daily,
     months: listReportMonths(),
   };
+}
+
+function deleteUsageMovement(movementId) {
+  const row = db.prepare(`
+    SELECT m.*, o.status AS order_status
+    FROM movements m
+    LEFT JOIN orders o ON o.id = m.order_id
+    WHERE m.id = ?
+  `).get(movementId);
+  if (!row) throw new Error('Lançamento não encontrado');
+  if (row.type !== 'uso') throw new Error('Só é possível excluir lançamentos de uso');
+  if (row.order_id && row.order_status && !['aberto', 'cancelado'].includes(row.order_status)) {
+    throw new Error('Este uso já entrou em pedido recebido e não pode ser excluído');
+  }
+
+  const tx = db.transaction(() => {
+    // Devolve ao estoque o que tinha sido baixado
+    applyStockChange(row.product_id, row.quantity);
+
+    if (row.order_id && row.order_status === 'aberto') {
+      const item = db.prepare(
+        'SELECT * FROM order_items WHERE order_id = ? AND product_id = ?',
+      ).get(row.order_id, row.product_id);
+      if (item) {
+        const nextQty = item.quantity - row.quantity;
+        if (nextQty <= 0) {
+          db.prepare('DELETE FROM order_items WHERE id = ?').run(item.id);
+        } else {
+          db.prepare('UPDATE order_items SET quantity = ? WHERE id = ?').run(nextQty, item.id);
+        }
+      }
+
+      const remaining = db.prepare(`
+        SELECT p.code, p.name, oi.quantity
+        FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = ?
+      `).all(row.order_id);
+
+      if (!remaining.length) {
+        db.prepare(`UPDATE orders SET status = 'cancelado', text = ? WHERE id = ?`).run(
+          `Pedido ${row.order_id} cancelado automaticamente após exclusão do último uso.`,
+          row.order_id,
+        );
+      } else {
+        const order = db.prepare('SELECT clinic FROM orders WHERE id = ?').get(row.order_id);
+        const total = remaining.reduce((s, i) => s + i.quantity, 0);
+        const text = formatOrderText(order.clinic, remaining);
+        db.prepare('UPDATE orders SET text = ?, total_units = ? WHERE id = ?')
+          .run(text, total, row.order_id);
+      }
+    }
+
+    db.prepare('DELETE FROM movements WHERE id = ?').run(movementId);
+    return { id: movementId, deleted: true, restored: row.quantity };
+  });
+
+  return tx();
 }
 
 module.exports = {
@@ -699,5 +820,6 @@ module.exports = {
   updateProductMinimum,
   getMonthlyUsageReport,
   listReportMonths,
+  deleteUsageMovement,
   productStatus,
 };

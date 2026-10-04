@@ -19,6 +19,7 @@ const {
   listMovements,
   updateProductMinimum,
   getMonthlyUsageReport,
+  deleteUsageMovement,
 } = require('./db');
 const {
   authStatus,
@@ -154,8 +155,19 @@ app.post('/api/usage', requireAuth, (req, res) => {
       clinic,
       items: req.body.items,
       note,
+      userId: req.user.id,
+      userName: req.user.name,
     });
     res.json({ ok: true, created, summary: getSummary() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/usage/:id', requireAuth, requireAdmin, (req, res) => {
+  try {
+    const result = deleteUsageMovement(req.params.id);
+    res.json({ ok: true, ...result, summary: getSummary() });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
