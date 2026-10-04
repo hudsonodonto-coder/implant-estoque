@@ -118,6 +118,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [adjustQty, setAdjustQty] = useState(1);
+  const [editMinimum, setEditMinimum] = useState(0);
   const [orderDetail, setOrderDetail] = useState(null);
   const [receiveQtys, setReceiveQtys] = useState({});
   const [allFamilies, setAllFamilies] = useState(['HE', 'GM', 'NGM']);
@@ -562,6 +563,26 @@ export default function App() {
     }
   }
 
+  async function saveMinimum() {
+    if (!selected) return;
+    const minimum = Number(editMinimum);
+    if (Number.isNaN(minimum) || minimum < 0) {
+      showToast('Mínimo inválido');
+      return;
+    }
+    setLoading(true);
+    try {
+      const updated = await api.updateMinimum(selected.id, minimum);
+      setSelected(updated);
+      await refreshAll();
+      showToast(`Mínimo de ${updated.name} = ${updated.minimum}`);
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleInstall() {
     if (installEvent) {
       installEvent.prompt();
@@ -801,7 +822,7 @@ export default function App() {
         <section className="section" style={{ marginTop: 0 }}>
           <h2 className="brand-mark" style={{ fontSize: '1.8rem', marginBottom: 4 }}>Estoque</h2>
           <p className="lede">
-            {isAdmin ? 'Código + quantidade. Toque para entrada ou saída.' : 'Consulta do estoque atual (somente leitura).'}
+            {isAdmin ? 'Toque no item para definir o mínimo ou dar entrada/saída.' : 'Consulta do estoque atual (somente leitura).'}
           </p>
           <div className="toolbar">
             <input
@@ -827,6 +848,7 @@ export default function App() {
                   if (!isAdmin) return;
                   setSelected(p);
                   setAdjustQty(1);
+                  setEditMinimum(p.minimum);
                 }}
               >
                 <div>
@@ -1216,24 +1238,52 @@ export default function App() {
         <div className="modal-backdrop" onClick={() => setSelected(null)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h3>{selected.name}</h3>
-            <div className="meta">Cod. {selected.code} · estoque {selected.quantity} · mín. {selected.minimum}</div>
-            <div className="qty-controls" style={{ marginBottom: 8 }}>
-              <button onClick={() => setAdjustQty((q) => Math.max(1, q - 1))}>−</button>
-              <span>{adjustQty}</span>
-              <button onClick={() => setAdjustQty((q) => q + 1)}>+</button>
-            </div>
+            <div className="meta">Cod. {selected.code} · estoque atual {selected.quantity}</div>
+
             {isAdmin && (
-            <div className="sheet-actions">
-              <button className="btn btn-solid" disabled={loading} onClick={() => doAdjust('entrada')}>Entrada (+)</button>
-              <button className="btn btn-outline" disabled={loading || selected.quantity < adjustQty} onClick={() => doAdjust('saida')}>Saída (−)</button>
-              <button className="btn btn-outline" onClick={() => setSelected(null)}>Cancelar</button>
-            </div>
-          )}
-          {!isAdmin && (
-            <div className="sheet-actions">
-              <button className="btn btn-outline" onClick={() => setSelected(null)}>Fechar</button>
-            </div>
-          )}
+              <>
+                <div className="panel" style={{ marginBottom: 10 }}>
+                  <strong>Estoque mínimo</strong>
+                  <div className="meta" style={{ margin: '4px 0 8px' }}>
+                    Quando o estoque ficar abaixo disso, aparece em “A comprar”.
+                  </div>
+                  <div className="qty-controls" style={{ marginBottom: 8 }}>
+                    <button onClick={() => setEditMinimum((q) => Math.max(0, Number(q) - 1))}>−</button>
+                    <span>{editMinimum}</span>
+                    <button onClick={() => setEditMinimum((q) => Number(q) + 1)}>+</button>
+                  </div>
+                  <button
+                    className="btn btn-solid"
+                    disabled={loading || Number(editMinimum) === Number(selected.minimum)}
+                    onClick={saveMinimum}
+                  >
+                    Salvar mínimo
+                  </button>
+                </div>
+
+                <div className="panel" style={{ marginBottom: 10 }}>
+                  <strong>Entrada / saída</strong>
+                  <div className="meta" style={{ margin: '4px 0 8px' }}>Ajuste manual da quantidade em estoque.</div>
+                  <div className="qty-controls" style={{ marginBottom: 8 }}>
+                    <button onClick={() => setAdjustQty((q) => Math.max(1, q - 1))}>−</button>
+                    <span>{adjustQty}</span>
+                    <button onClick={() => setAdjustQty((q) => q + 1)}>+</button>
+                  </div>
+                  <div className="sheet-actions">
+                    <button className="btn btn-solid" disabled={loading} onClick={() => doAdjust('entrada')}>Entrada (+)</button>
+                    <button className="btn btn-outline" disabled={loading || selected.quantity < adjustQty} onClick={() => doAdjust('saida')}>Saída (−)</button>
+                  </div>
+                </div>
+
+                <button className="btn btn-outline" onClick={() => setSelected(null)}>Fechar</button>
+              </>
+            )}
+            {!isAdmin && (
+              <div className="sheet-actions">
+                <div className="meta">Mínimo configurado: {selected.minimum}</div>
+                <button className="btn btn-outline" onClick={() => setSelected(null)}>Fechar</button>
+              </div>
+            )}
           </div>
         </div>
       )}
