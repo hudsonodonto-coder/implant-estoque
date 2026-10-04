@@ -124,6 +124,10 @@ export default function App() {
   const [userForm, setUserForm] = useState({
     name: '', username: '', password: '', clinic: 'OC', role: 'dentist',
   });
+  const [editUser, setEditUser] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '', username: '', password: '', clinic: 'OC',
+  });
   const isAdmin = user?.role === 'admin';
   const isDentist = user?.role === 'dentist';
   const [report, setReport] = useState(null);
@@ -333,12 +337,30 @@ export default function App() {
   }
 
   async function resetUserPassword(u) {
-    const password = window.prompt(`Nova senha para ${u.name}:`);
-    if (!password) return;
+    setEditUser(u);
+    setEditForm({
+      name: u.name || '',
+      username: u.username || '',
+      password: '',
+      clinic: u.clinic || 'OC',
+    });
+  }
+
+  async function saveUserEdit(e) {
+    e.preventDefault();
+    if (!editUser) return;
     setLoading(true);
     try {
-      await api.updateUser(u.id, { password });
-      showToast('Senha atualizada');
+      const payload = {
+        name: editForm.name,
+        username: editForm.username,
+        clinic: editForm.clinic,
+      };
+      if (editForm.password.trim()) payload.password = editForm.password.trim();
+      await api.updateUser(editUser.id, payload);
+      setUsers(await api.users());
+      setEditUser(null);
+      showToast('Acesso atualizado');
     } catch (err) {
       showToast(err.message);
     } finally {
@@ -1124,7 +1146,7 @@ export default function App() {
                 </div>
                 {u.role !== 'admin' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10, width: '100%' }}>
-                    <button className="btn btn-outline" disabled={loading} onClick={() => resetUserPassword(u)}>Nova senha</button>
+                    <button className="btn btn-outline" disabled={loading} onClick={() => resetUserPassword(u)}>Editar acesso</button>
                     <button className="btn btn-outline" disabled={loading} onClick={() => toggleUserActive(u)}>
                       {u.active ? 'Desativar' : 'Reativar'}
                     </button>

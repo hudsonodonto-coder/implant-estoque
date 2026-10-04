@@ -89,18 +89,29 @@ function createUser({ name, username, password, role, clinic }) {
   return getUserById(info.lastInsertRowid);
 }
 
-function updateUser(id, { name, clinic, password, active, role }) {
+function updateUser(id, { name, username, clinic, password, active, role }) {
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   if (!row) throw new Error('Usuário não encontrado');
 
   const nextName = name !== undefined ? String(name).trim() : row.name;
+  const nextUsername = username !== undefined
+    ? String(username).trim().toLowerCase()
+    : row.username;
   const nextRole = role !== undefined ? role : row.role;
   const nextClinic = nextRole === 'dentist'
     ? (clinic !== undefined ? clinic : row.clinic)
     : null;
   const nextActive = active !== undefined ? (active ? 1 : 0) : row.active;
   if (!nextName) throw new Error('Nome obrigatório');
+  if (!nextUsername) throw new Error('Login obrigatório');
   if (nextRole === 'dentist' && !nextClinic) throw new Error('Clínica obrigatória para dentista');
+
+  if (nextUsername !== row.username) {
+    const taken = db.prepare(
+      'SELECT id FROM users WHERE lower(username) = lower(?) AND id != ?',
+    ).get(nextUsername, id);
+    if (taken) throw new Error('Este login já existe');
+  }
 
   let passwordHash = row.password_hash;
   if (password !== undefined && password !== '') {
@@ -110,9 +121,9 @@ function updateUser(id, { name, clinic, password, active, role }) {
 
   db.prepare(`
     UPDATE users
-    SET name = ?, role = ?, clinic = ?, active = ?, password_hash = ?
+    SET name = ?, username = ?, role = ?, clinic = ?, active = ?, password_hash = ?
     WHERE id = ?
-  `).run(nextName, nextRole, nextClinic, nextActive, passwordHash, id);
+  `).run(nextName, nextUsername, nextRole, nextClinic, nextActive, passwordHash, id);
 
   return getUserById(id);
 }
