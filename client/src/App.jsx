@@ -831,11 +831,13 @@ export default function App() {
               >
                 <div>
                   <div className="title">{p.name}</div>
-                  <div className="meta">Cod. {p.code} · mín. {p.minimum}{p.buy ? ` · faltar ${p.buy}` : ''}</div>
+                  <div className="meta">Cod. {p.code} · mín. {p.minimum}{p.buy ? ` · estoque ${p.quantity}` : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="qty">{p.quantity}</div>
-                  <span className={`badge ${p.status === 'Comprar' ? 'buy' : 'ok'}`}>{p.status}</span>
+                  <div className="qty">{status === 'Comprar' ? p.buy : p.quantity}</div>
+                  <span className={`badge ${p.status === 'Comprar' ? 'buy' : 'ok'}`}>
+                    {status === 'Comprar' ? 'Faltar' : p.status}
+                  </span>
                 </div>
               </button>
             ))}
