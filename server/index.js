@@ -11,6 +11,8 @@ const {
   createOrderFromUsage,
   createOrderFromMinimum,
   receiveOrder,
+  cancelOrder,
+  updateOpenOrderItems,
   listOrders,
   getOrder,
   listMovements,
@@ -112,8 +114,26 @@ app.post('/api/orders/from-minimum', (req, res) => {
 
 app.post('/api/orders/:id/receive', (req, res) => {
   try {
-    const order = receiveOrder(req.params.id);
+    const order = receiveOrder(req.params.id, req.body || {});
     res.json({ ok: true, order, summary: getSummary() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/orders/:id/cancel', (req, res) => {
+  try {
+    const order = cancelOrder(req.params.id);
+    res.json({ ok: true, order, summary: getSummary() });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.patch('/api/orders/:id/items', (req, res) => {
+  try {
+    const order = updateOpenOrderItems(req.params.id, req.body.items || []);
+    res.json({ ok: true, order });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }

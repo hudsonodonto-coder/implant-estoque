@@ -319,30 +319,195 @@ function createOrderFromMinimum(clinic) {
   return tx();
 }
 
-function receiveOrder(orderId) {
+function receiveOrder(orderId, payload = {}) {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   if (!order) throw new Error('Pedido não encontrado');
-  if (order.status === 'recebido') throw new Error('Pedido já recebido');
+  if (order.status === 'recebido' || order.status === 'parcial') {
+    throw new Error('Pedido já foi recebido');
+  }
+  if (order.status === 'cancelado') throw new Error('Pedido cancelado');
+  if (order.status === 'historico') throw new Error('Pedido histórico não pode ser recebido');
 
-  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+  const orderedItems = db.prepare(`
+    SELECT oi.*, p.code, p.name
+    FROM order_items oi
+    JOIN products p ON p.id = oi.product_id
+    WHERE oi.order_id = ?
+  `).all(orderId);
+  if (!orderedItems.length) throw new Error('Pedido sem itens');
+
+  const receivedMap = new Map();
+  if (Array.isArray(payload.items) && payload.items.length) {
+    for (const item of payload.items) {
+      const productId = Number(item.productId || item.product_id);
+      const qty = Number(item.quantity);
+      if (!productId || Number.isNaN(qty) || qty < 0) continue;
+      receivedMap.set(productId, qty);
+    }
+  } else {
+    for (const item of orderedItems) receivedMap.set(item.product_id, item.quantity);
+  }
+
   const tx = db.transaction(() => {
+    let receivedTotal = 0;
+    let missingTotal = 0;
+    const missingForPending = [];
+
+    for (const item of orderedItems) {
+      const ordered = item.quantity;
+      const received = Math.min(ordered, receivedMap.has(item.product_id)
+        ? receivedMap.get(item.product_id)
+        : ordered);
+      const missing = Math.max(0, ordered - received);
+
+      if (received > 0) {
+        applyStockChange(item.product_id, received);
+        const id = require('crypto').randomUUID().slice(0, 8);
+        createMovement({
+          id,
+          productId: item.product_id,
+          type: 'entrada',
+          quantity: received,
+          clinic: order.clinic,
+          note: missing
+            ? `Recebimento parcial pedido ${orderId} (${received}/${ordered})`
+            : `Recebimento pedido ${orderId}`,
+          orderId,
+        });
+        receivedTotal += received;
+      }
+
+      if (missing > 0) {
+        missingTotal += missing;
+        missingForPending.push({
+          product_id: item.product_id,
+          code: item.code,
+          name: item.name,
+          quantity: missing,
+        });
+      }
+    }
+
+    if (receivedTotal === 0 && missingTotal > 0) {
+      throw new Error('Informe ao menos 1 unidade recebida, ou cancele o pedido');
+    }
+
+    // Faltantes de pedido por uso voltam como pendência de compra (sem baixar estoque de novo)
+    if (order.source === 'uso' && missingForPending.length) {
+      for (const miss of missingForPending) {
+        const id = require('crypto').randomUUID().slice(0, 8);
+        createMovement({
+          id,
+          productId: miss.product_id,
+          type: 'uso',
+          quantity: miss.quantity,
+          clinic: order.clinic,
+          note: `Faltante do pedido ${orderId}`,
+          orderId: null,
+        });
+      }
+    }
+
+    const receivedAt = new Date().toISOString();
+    const status = missingTotal > 0 ? 'parcial' : 'recebido';
+    const summaryLines = orderedItems.map((item) => {
+      const ordered = item.quantity;
+      const received = Math.min(ordered, receivedMap.has(item.product_id)
+        ? receivedMap.get(item.product_id)
+        : ordered);
+      const unit = received === 1 ? 'unidade' : 'unidades';
+      const extra = received < ordered ? ` (faltou ${ordered - received})` : '';
+      return `Cod. ${item.code} - ${item.name} → recebido ${received} ${unit}${extra}`;
+    });
+    const text = `Pedido ${order.id} (${order.clinic}) — ${status}:\n\n${summaryLines.join('\n')}\n\nRECEBIDO: ${receivedTotal} · FALTANTE: ${missingTotal}`;
+
+    db.prepare(`
+      UPDATE orders
+      SET status = ?, received_at = ?, text = ?, total_units = ?
+      WHERE id = ?
+    `).run(status, receivedAt, text, receivedTotal, orderId);
+
+    return getOrder(orderId);
+  });
+
+  return tx();
+}
+
+function cancelOrder(orderId) {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!order) throw new Error('Pedido não encontrado');
+  if (order.status === 'recebido' || order.status === 'parcial') {
+    throw new Error('Pedido já recebido — não pode cancelar');
+  }
+  if (order.status === 'cancelado') throw new Error('Pedido já cancelado');
+  if (order.status === 'historico') throw new Error('Pedido histórico não pode ser cancelado');
+
+  const tx = db.transaction(() => {
+    // Devolve usos para pendência de compra
+    db.prepare(`
+      UPDATE movements
+      SET order_id = NULL
+      WHERE order_id = ? AND type = 'uso'
+    `).run(orderId);
+
+    db.prepare(`
+      UPDATE orders
+      SET status = 'cancelado', text = ?
+      WHERE id = ?
+    `).run(`${order.text}\n\n[CANCELADO em ${new Date().toLocaleString('pt-BR')}]`, orderId);
+
+    return getOrder(orderId);
+  });
+
+  return tx();
+}
+
+function updateOpenOrderItems(orderId, items) {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!order) throw new Error('Pedido não encontrado');
+  if (order.status !== 'aberto') throw new Error('Só é possível editar pedidos abertos');
+  if (!Array.isArray(items) || !items.length) throw new Error('Informe os itens');
+
+  const tx = db.transaction(() => {
+    const nextItems = [];
     for (const item of items) {
-      applyStockChange(item.product_id, item.quantity);
-      const id = require('crypto').randomUUID().slice(0, 8);
-      createMovement({
-        id,
-        productId: item.product_id,
-        type: 'entrada',
-        quantity: item.quantity,
-        clinic: order.clinic,
-        note: `Recebimento pedido ${orderId}`,
-        orderId,
+      const productId = Number(item.productId || item.product_id);
+      const qty = Number(item.quantity);
+      if (!productId || Number.isNaN(qty) || qty < 0) continue;
+      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
+      if (!product) throw new Error('Produto inválido');
+      if (qty === 0) {
+        db.prepare('DELETE FROM order_items WHERE order_id = ? AND product_id = ?')
+          .run(orderId, productId);
+        continue;
+      }
+      const existing = db.prepare(
+        'SELECT id FROM order_items WHERE order_id = ? AND product_id = ?',
+      ).get(orderId, productId);
+      if (existing) {
+        db.prepare('UPDATE order_items SET quantity = ? WHERE id = ?').run(qty, existing.id);
+      } else {
+        db.prepare(
+          'INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)',
+        ).run(orderId, productId, qty);
+      }
+      nextItems.push({
+        code: product.code,
+        name: product.name,
+        quantity: qty,
       });
     }
-    const receivedAt = new Date().toISOString();
-    db.prepare(`UPDATE orders SET status = 'recebido', received_at = ? WHERE id = ?`).run(receivedAt, orderId);
-    return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    if (!nextItems.length) throw new Error('Pedido ficaria sem itens — cancele o pedido');
+
+    const total = nextItems.reduce((s, i) => s + i.quantity, 0);
+    const text = formatOrderText(order.clinic, nextItems);
+    db.prepare(`
+      UPDATE orders SET text = ?, total_units = ? WHERE id = ?
+    `).run(text, total, orderId);
+
+    return getOrder(orderId);
   });
+
   return tx();
 }
 
@@ -505,6 +670,8 @@ module.exports = {
   createOrderFromUsage,
   createOrderFromMinimum,
   receiveOrder,
+  cancelOrder,
+  updateOpenOrderItems,
   listOrders,
   getOrder,
   listMovements,

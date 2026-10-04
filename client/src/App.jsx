@@ -96,6 +96,7 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [adjustQty, setAdjustQty] = useState(1);
   const [orderDetail, setOrderDetail] = useState(null);
+  const [receiveQtys, setReceiveQtys] = useState({});
   const [allFamilies, setAllFamilies] = useState(['HE', 'GM', 'NGM']);
   const [report, setReport] = useState(null);
   const [reportMonth, setReportMonth] = useState(() => {
@@ -237,7 +238,7 @@ export default function App() {
     try {
       const res = await api.orderFromUsage(clinic);
       await refreshAll();
-      setOrderDetail(await api.order(res.order.id));
+      await openOrder(res.order.id);
       showToast(`Pedido gerado para ${clinic}`);
     } catch (e) {
       showToast(e.message);
@@ -251,7 +252,7 @@ export default function App() {
     try {
       const res = await api.orderFromMinimum(clinic);
       await refreshAll();
-      setOrderDetail(await api.order(res.order.id));
+      await openOrder(res.order.id);
       showToast('Pedido por mínimo gerado');
     } catch (e) {
       showToast(e.message);
@@ -260,14 +261,61 @@ export default function App() {
     }
   }
 
+  async function openOrder(id) {
+    try {
+      const order = await api.order(id);
+      setOrderDetail(order);
+      const qtys = {};
+      for (const item of order.items || []) {
+        qtys[item.product_id] = item.quantity;
+      }
+      setReceiveQtys(qtys);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  function bumpReceiveQty(productId, delta, max) {
+    setReceiveQtys((prev) => {
+      const cur = prev[productId] || 0;
+      return { ...prev, [productId]: Math.max(0, Math.min(max, cur + delta)) };
+    });
+  }
+
   async function receiveSelectedOrder() {
     if (!orderDetail) return;
     setLoading(true);
     try {
-      await api.receiveOrder(orderDetail.id);
+      const items = (orderDetail.items || []).map((item) => ({
+        productId: item.product_id,
+        quantity: receiveQtys[item.product_id] ?? item.quantity,
+      }));
+      const res = await api.receiveOrder(orderDetail.id, { items });
       await refreshAll();
       setOrderDetail(null);
-      showToast('Pedido recebido — estoque atualizado');
+      setReceiveQtys({});
+      if (res.order?.status === 'parcial') {
+        showToast('Recebido parcial — faltantes voltaram para comprar');
+      } else {
+        showToast('Pedido recebido — estoque atualizado');
+      }
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cancelSelectedOrder() {
+    if (!orderDetail) return;
+    if (!window.confirm('Cancelar este pedido? Os usos voltam para pendentes de compra.')) return;
+    setLoading(true);
+    try {
+      await api.cancelOrder(orderDetail.id);
+      await refreshAll();
+      setOrderDetail(null);
+      setReceiveQtys({});
+      showToast('Pedido cancelado');
     } catch (e) {
       showToast(e.message);
     } finally {
@@ -562,19 +610,13 @@ export default function App() {
               <button
                 key={o.id}
                 className="row"
-                onClick={async () => {
-                  try {
-                    setOrderDetail(await api.order(o.id));
-                  } catch (e) {
-                    showToast(e.message);
-                  }
-                }}
+                onClick={() => openOrder(o.id)}
               >
                 <div>
                   <div className="title">{o.clinic} · {o.total_units || 0} un.</div>
                   <div className="meta">{formatDate(o.created_at)} · {o.source} · {o.status}</div>
                 </div>
-                <span className={`badge ${o.status === 'aberto' ? 'buy' : 'ok'}`}>{o.status}</span>
+                <span className={`badge ${o.status === 'aberto' || o.status === 'parcial' ? 'buy' : 'ok'}`}>{o.status}</span>
               </button>
             ))}
             {!orders.length && <div className="empty">Nenhum pedido ainda.</div>}
@@ -727,22 +769,54 @@ export default function App() {
       )}
 
       {orderDetail && (
-        <div className="modal-backdrop" onClick={() => setOrderDetail(null)}>
+        <div className="modal-backdrop" onClick={() => { setOrderDetail(null); setReceiveQtys({}); }}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h3>Pedido {orderDetail.id}</h3>
             <div className="meta">
               {orderDetail.clinic} · {orderDetail.status} · {formatDate(orderDetail.created_at)}
             </div>
-            <div className="panel">
-              <pre>{orderDetail.text}</pre>
-            </div>
+
+            {orderDetail.status === 'aberto' && orderDetail.items?.length > 0 ? (
+              <div className="panel" style={{ marginBottom: 8 }}>
+                <strong>Quanto chegou?</strong>
+                <div className="meta" style={{ margin: '4px 0 8px' }}>
+                  Ajuste se faltar algum implante. O que não chegou volta para “a comprar”.
+                </div>
+                {orderDetail.items.map((item) => {
+                  const received = receiveQtys[item.product_id] ?? item.quantity;
+                  return (
+                    <div key={item.product_id} className="report-item">
+                      <div>
+                        <div className="title">{item.name}</div>
+                        <div className="meta">Cod. {item.code} · pedido {item.quantity}</div>
+                      </div>
+                      <div className="qty-controls">
+                        <button onClick={() => bumpReceiveQty(item.product_id, -1, item.quantity)}>−</button>
+                        <span>{received}</span>
+                        <button onClick={() => bumpReceiveQty(item.product_id, 1, item.quantity)}>+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="panel">
+                <pre>{orderDetail.text}</pre>
+              </div>
+            )}
+
             <div className="sheet-actions">
               {orderDetail.status === 'aberto' && orderDetail.items?.length > 0 && (
-                <button className="btn btn-accent" disabled={loading} onClick={receiveSelectedOrder}>
-                  Marcar como recebido (entra no estoque)
-                </button>
+                <>
+                  <button className="btn btn-accent" disabled={loading} onClick={receiveSelectedOrder}>
+                    Confirmar recebimento
+                  </button>
+                  <button className="btn btn-outline" disabled={loading} onClick={cancelSelectedOrder}>
+                    Cancelar pedido
+                  </button>
+                </>
               )}
-              <button className="btn btn-outline" onClick={() => setOrderDetail(null)}>Fechar</button>
+              <button className="btn btn-outline" onClick={() => { setOrderDetail(null); setReceiveQtys({}); }}>Fechar</button>
             </div>
           </div>
         </div>
