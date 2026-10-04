@@ -417,12 +417,9 @@ export default function App() {
     try {
       const res = await api.orderFromUsage(clinic);
       await refreshAll();
-      await openOrder(res.order.id);
+      const order = await openOrder(res.order.id);
       showToast(`Pedido gerado para ${clinicName(clinic)}`);
-      // abre WhatsApp em seguida para facilitar o envio
-      setTimeout(() => {
-        shareOrderWhatsApp(res.order);
-      }, 350);
+      if (order) setTimeout(() => shareOrderWhatsApp(order), 300);
     } catch (e) {
       showToast(e.message);
     } finally {
@@ -435,8 +432,9 @@ export default function App() {
     try {
       const res = await api.orderFromMinimum(clinic);
       await refreshAll();
-      await openOrder(res.order.id);
+      const order = await openOrder(res.order.id);
       showToast('Pedido por mínimo gerado');
+      if (order) setTimeout(() => shareOrderWhatsApp(order), 300);
     } catch (e) {
       showToast(e.message);
     } finally {
@@ -453,8 +451,10 @@ export default function App() {
         qtys[item.product_id] = item.quantity;
       }
       setReceiveQtys(qtys);
+      return order;
     } catch (e) {
       showToast(e.message);
+      return null;
     }
   }
 
