@@ -113,7 +113,7 @@ function productStatus(row) {
 const FAMILY_RANK = { GM: 0, HE: 1, NGM: 2 };
 
 function implantDimensions(name) {
-  const match = String(name || '').match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)/i);
+  const match = String(name || '').match(/(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)/i);
   if (!match) return null;
   return {
     diameter: Number(match[1].replace(',', '.')),
