@@ -110,6 +110,36 @@ function productStatus(row) {
   };
 }
 
+const FAMILY_RANK = { GM: 0, HE: 1, NGM: 2 };
+
+function implantDimensions(name) {
+  const match = String(name || '').match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)/i);
+  if (!match) return null;
+  return {
+    diameter: Number(match[1].replace(',', '.')),
+    length: Number(match[2].replace(',', '.')),
+  };
+}
+
+function compareProducts(a, b) {
+  const ra = FAMILY_RANK[a.family] ?? 100;
+  const rb = FAMILY_RANK[b.family] ?? 100;
+  if (ra !== rb) return ra - rb;
+  const familyCmp = String(a.family || '').localeCompare(String(b.family || ''), 'pt-BR');
+  if (familyCmp !== 0) return familyCmp;
+  const da = implantDimensions(a.name);
+  const dbSize = implantDimensions(b.name);
+  if (da && dbSize) {
+    if (da.diameter !== dbSize.diameter) return da.diameter - dbSize.diameter;
+    if (da.length !== dbSize.length) return da.length - dbSize.length;
+  } else if (da || dbSize) {
+    return da ? -1 : 1;
+  }
+  const nameCmp = String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
+  if (nameCmp !== 0) return nameCmp;
+  return String(a.code || '').localeCompare(String(b.code || ''), 'pt-BR', { numeric: true });
+}
+
 function getProducts({ q = '', family = '', status = '' } = {}) {
   let sql = 'SELECT * FROM products WHERE 1=1';
   const params = [];
@@ -121,8 +151,8 @@ function getProducts({ q = '', family = '', status = '' } = {}) {
     sql += ' AND family = ?';
     params.push(family);
   }
-  sql += ' ORDER BY family, name';
   let rows = db.prepare(sql).all(...params).map(productStatus);
+  rows.sort(compareProducts);
   if (status === 'Comprar') rows = rows.filter((r) => r.status === 'Comprar');
   if (status === 'OK') rows = rows.filter((r) => r.status === 'OK');
   return rows;
@@ -162,11 +192,15 @@ function getPendingUsage(clinic) {
     sql += ' AND m.clinic = ?';
     params.push(clinic);
   }
-  sql += ' GROUP BY m.clinic, m.product_id ORDER BY m.clinic, p.family, p.name';
+  sql += ' GROUP BY m.clinic, m.product_id';
   return db.prepare(sql).all(...params).map((r) => ({
     ...r,
     quantity: Number(r.quantity),
-  }));
+  })).sort((a, b) => {
+    const clinicCmp = String(a.clinic).localeCompare(String(b.clinic), 'pt-BR');
+    if (clinicCmp !== 0) return clinicCmp;
+    return compareProducts(a, b);
+  });
 }
 
 function applyStockChange(productId, delta) {
@@ -538,10 +572,12 @@ function updateOpenOrderItems(orderId, items) {
       nextItems.push({
         code: product.code,
         name: product.name,
+        family: product.family,
         quantity: qty,
       });
     }
     if (!nextItems.length) throw new Error('Pedido ficaria sem itens — cancele o pedido');
+    nextItems.sort(compareProducts);
 
     const total = nextItems.reduce((s, i) => s + i.quantity, 0);
     const text = formatOrderText(order.clinic, nextItems);
@@ -587,7 +623,7 @@ function getOrder(id) {
     FROM order_items oi
     JOIN products p ON p.id = oi.product_id
     WHERE oi.order_id = ?
-  `).all(id);
+  `).all(id).sort(compareProducts);
   return { ...order, items };
 }
 
@@ -691,6 +727,7 @@ function getMonthlyUsageReport({ year, month, clinic } = {}) {
     c.byFamily[item.family] = (c.byFamily[item.family] || 0) + item.quantity;
     c.items.push(item);
   }
+  for (const c of Object.values(byClinic)) c.items.sort(compareProducts);
 
   let entriesSql = `
     SELECT m.id, m.clinic, m.product_id, m.quantity, m.created_at, m.order_id,
@@ -800,11 +837,11 @@ function deleteUsageMovement(movementId) {
       }
 
       const remaining = db.prepare(`
-        SELECT p.code, p.name, oi.quantity
+        SELECT p.code, p.name, p.family, oi.quantity
         FROM order_items oi
         JOIN products p ON p.id = oi.product_id
         WHERE oi.order_id = ?
-      `).all(row.order_id);
+      `).all(row.order_id).sort(compareProducts);
 
       if (!remaining.length) {
         db.prepare(`UPDATE orders SET status = 'cancelado', text = ? WHERE id = ?`).run(
